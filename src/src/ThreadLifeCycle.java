@@ -1,98 +1,74 @@
 import java.util.ArrayList;
 
-
 public class ThreadLifeCycle {
     public static void main(String[] args) {
-        ArrayList<String> orders = new ArrayList<>();
-        ReceiveOrder receiveOrder = new ReceiveOrder(orders,"Order Receiver Thread");
-        System.out.println("Order receiver thread is in the state: "+ receiveOrder.getState()); // this will print new state
-        ProcessingOrders processingOrder = new ProcessingOrders("Order processing thread 1", orders);
-        ProcessingOrders processingOrder1 = new ProcessingOrders("Order processing thread 2", orders);
-        receiveOrder.start();
-
+        ArrayList<String> orders= new ArrayList<>();
+        ReceiveOrders receiveOrders = new ReceiveOrders(orders);
+        ProcessOrders processOrders =new ProcessOrders(orders);
+        ProcessOrders processOrders1 =new ProcessOrders(orders);
+        System.out.println("The state of receiveOrders: "+ receiveOrders.getState()); //NEW state
+        receiveOrders.start();
         try {
-            receiveOrder.join(); // main thread waits for ReceiveOrder thread to finish
-            processingOrder.start();
-            processingOrder1.start();
-
-
-        }catch (InterruptedException e){
-            throw new RuntimeException(e);
-        }
-
-        System.out.println("Order processing thread 1 is in the state: "+ processingOrder.getState()); // runnable
-        System.out.println("Order processing thread 2 is in the state: "+ processingOrder1.getState()); // blocked
-
-
-        try{
-            Thread.sleep(1000); // Allow time for the first thread to lock and the second to get blocked
+            receiveOrders.join();
+            Thread.sleep(100);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
 
+        processOrders.start();//RUNNABLE state
+        processOrders1.start(); //BLOCKED STATE
+        System.out.println("The state of processOrders: "+ processOrders.getState());
+        System.out.println("The state of processOrders1: "+ processOrders1.getState());
 
     }
 }
 
-class ReceiveOrder extends Thread {
+class ReceiveOrders extends Thread{
     ArrayList<String> orders;
-    public ReceiveOrder( ArrayList<String> orders,String name){
-        super(name);
-        this.orders=orders;
+    public ReceiveOrders(ArrayList<String> orders){
+        this.orders= orders;
     }
-
-    @Override
-    public void run() {
-        for (int i = 0; i < 10; i++) {
-            orders.add("Order No. "+i);
-            System.out.println(Thread.currentThread().getName()+ " has received the order no. "+ orders.get(i));
-        }
-
-        try{
-            Thread.sleep(100); // Simulate receiving time
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+    public synchronized void receiveOrder(){
+        for (int i = 0; i < 5; i++) {
+            orders.add("Order no. "+ i);
         }
         System.out.println(Thread.currentThread().getName()+ " has received all the orders");
     }
-}
-
-class ProcessingOrders extends Thread{
-    ArrayList<String> orders;
-
-    public ProcessingOrders(String name, ArrayList<String> orders){
-        super(name);
-        this.orders = orders;
-
-    }
-
-    public synchronized void processOrders(){
-
-        while (orders.isEmpty()){
-            try {
-                wait(); // waiting for orders
-            }catch (InterruptedException e){
-                throw new RuntimeException(e);
-            }
-            System.out.println(Thread.currentThread().getName() + " is waiting for the orders");
-
-        }
-
-        notify();
-        for(String order:orders){
-            try{
-                Thread.sleep(1000); // simulating processing time
-                System.out.println(order+ " has been processed");
-            }catch (InterruptedException e){
-                throw new RuntimeException(e);
-            }
-        }
-    }
 
     @Override
     public void run() {
-        processOrders();
+        try {
+            Thread.sleep(500); // simulating receive time
+            receiveOrder();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
 
+class ProcessOrders extends Thread{
+    ArrayList<String> orders;
+    public ProcessOrders (ArrayList<String> orders){
+        this.orders= orders;
+    }
+
+    public synchronized void process(){
+        System.out.println(Thread.currentThread().getName()+ " has started processing orders");
+        for (String order:orders){
+            System.out.println(order+ " is currently being processed");
+        }
+        System.out.println(Thread.currentThread().getName()+ " has processed all orders");
+        try{
+
+            Thread.sleep(1000000000); //simulating processing time
+
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    @Override
+    public void run() {
+         process();
+    }
+}
 

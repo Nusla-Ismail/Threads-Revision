@@ -1,98 +1,85 @@
-public class OrderLifecycleThread extends Thread {
-    // Shared resource to simulate inventory update
-    private static boolean inventoryUpdated = false;
+class OrderLifecycleThread extends Thread {
+    private static final Object inventoryLock = new Object();
 
-    // Simulate receiving an order (NEW state)
+    // Method to simulate receiving an order (NEW state)
     public void receiveOrder() {
-        System.out.println("Order received. Transitioning to RUNNABLE state.");
+        System.out.println(Thread.currentThread().getName() + " - Receiving order...");
     }
 
-    // Simulate processing an order (RUNNABLE and BLOCKED states)
-    public synchronized void processOrder() throws InterruptedException {
-        // RUNNABLE state
-        System.out.println("Processing order. Transitioning to RUNNABLE state.");
-        Thread.sleep(1000); // Simulate work being done in the RUNNABLE state
+    // Method to simulate processing an order (RUNNABLE and BLOCKED states)
+    public void processOrder() throws InterruptedException {
+        System.out.println(Thread.currentThread().getName() + " - Processing order...");
+        Thread.sleep(1000); // Simulate time taken for processing (RUNNABLE state)
+        System.out.println(Thread.currentThread().getName() + " - Order processed. Waiting for inventory update...");
 
-        // Simulate a scenario where the thread is BLOCKED by another thread
-        System.out.println("Order processing is blocked due to inventory check.");
-        while (!inventoryUpdated) {
-            wait(); // Waiting for the inventory update (BLOCKED state)
-        }
-
-        // After receiving the inventory update, processing continues
-        System.out.println("Order processed successfully. Transitioning to TERMINATED state.");
-    }
-
-    // Simulate waiting for an inventory update (WAITING state)
-    public synchronized void waitForInventoryUpdate() throws InterruptedException {
-        System.out.println("Waiting for inventory update. Transitioning to WAITING state.");
-        while (!inventoryUpdated) {
-            wait(); // The thread will wait until inventory is updated
+        // Simulate BLOCKED state while waiting for inventory update
+        // Here, we release the lock before calling wait()
+        synchronized (inventoryLock) {
+            System.out.println(Thread.currentThread().getName() + " - Blocked while waiting for inventory update.");
+            // Now release the lock before calling wait
+            inventoryLock.wait();  // The thread will wait here until inventory is updated
         }
     }
 
-    // Simulate timed waiting for shipping confirmation (TIMED_WAITING state)
+    // Method to simulate waiting for an inventory update (WAITING state)
+    public void waitForInventoryUpdate() throws InterruptedException {
+        System.out.println(Thread.currentThread().getName() + " - Waiting for inventory update...");
+        synchronized (inventoryLock) {
+            inventoryLock.wait(); // Thread enters WAITING state
+        }
+    }
+
+    // Method to simulate timed waiting for shipping (TIMED_WAITING state)
     public void waitForShipping() throws InterruptedException {
-        System.out.println("Waiting for shipping confirmation. Transitioning to TIMED_WAITING state.");
-        Thread.sleep(2000); // Simulate waiting for a shipping confirmation
+        System.out.println(Thread.currentThread().getName() + " - Waiting for shipping confirmation...");
+        Thread.sleep(2000);  // Thread enters TIMED_WAITING state for 2 seconds
     }
 
-    // Simulate the completion of the order processing (TERMINATED state)
+    // Method to complete the order and reach the TERMINATED state
     public void completeOrder() {
-        System.out.println("Order completed. Transitioning to TERMINATED state.");
-    }
-
-    // Main method to demonstrate the thread's life cycle
-    public static void main(String[] args) throws InterruptedException {
-        OrderLifecycleThread orderThread = new OrderLifecycleThread();
-
-        // Simulating the life cycle of the thread
-        orderThread.start(); // NEW state -> RUNNABLE state
-
-        // Simulating receiving an order
-        orderThread.receiveOrder();
-
-        // Simulating order processing (RUNNABLE and BLOCKED)
-        orderThread.processOrder();
-
-        // Simulating waiting for inventory update
-        orderThread.waitForInventoryUpdate();
-
-        // Simulating waiting for shipping confirmation (TIMED_WAITING)
-        orderThread.waitForShipping();
-
-        // Simulating the completion of the order processing (TERMINATED)
-        orderThread.completeOrder();
+        System.out.println(Thread.currentThread().getName() + " - Order completed. Terminating thread.");
     }
 
     @Override
     public void run() {
-        // This thread simulates processing the order and handles state transitions
         try {
-            // Receiving and processing orders
+            // 1. Receiving orders (NEW state)
             receiveOrder();
+
+            // 2. Processing orders (RUNNABLE and BLOCKED states)
             processOrder();
 
-            // Waiting for inventory update
+            // 3. Waiting for inventory update (WAITING state)
             waitForInventoryUpdate();
 
-            // Waiting for shipping confirmation
+            // 4. Timed waiting for shipping (TIMED_WAITING state)
             waitForShipping();
 
-            // Completing the order
+            // 5. Completing the order (TERMINATED state)
             completeOrder();
+
         } catch (InterruptedException e) {
-            System.out.println("Thread was interrupted.");
+            System.out.println(Thread.currentThread().getName() + " - Thread interrupted.");
         }
     }
 
-    // Method to simulate an inventory update (used by another thread)
-    public static synchronized void updateInventory() {
-        inventoryUpdated = true;
-        System.out.println("Inventory updated. Notifying waiting threads.");
-        // Notify all threads waiting for the inventory update
-        synchronized (OrderLifecycleThread.class) {
-            OrderLifecycleThread.class.notifyAll(); // Notify the thread waiting for inventory
+    public static void main(String[] args) throws InterruptedException {
+        // Create a thread to simulate the lifecycle of order processing
+        OrderLifecycleThread orderThread = new OrderLifecycleThread();
+
+        // 1. Start the thread (NEW state)
+        System.out.println("Main thread - Starting Order Thread...");
+        orderThread.start();
+
+        // Simulating inventory update from another thread to unblock the waiting thread
+        Thread.sleep(3000);  // Wait for some time before updating inventory
+        synchronized (inventoryLock) {
+            System.out.println("Main thread - Updating inventory...");
+            inventoryLock.notify();  // Notify the waiting thread that inventory is updated
         }
+
+        // Wait for the order thread to complete (TERMINATED state)
+        orderThread.join();
+        System.out.println("Main thread - Order processing completed.");
     }
 }
